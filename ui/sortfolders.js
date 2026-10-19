@@ -80,7 +80,6 @@ function populateExpandableChecklist(accounts, checkedURIs) {
   for (let acc of accounts) {
     let parentURIs = new Set(acc.folders.map((f) => f.parentURI));
 
-    // Clean Account label matching the Folder Sort Order section
     let rootLabel = document.createElement("label");
     rootLabel.className = "checkbox-item account-root";
 
@@ -97,7 +96,6 @@ function populateExpandableChecklist(accounts, checkedURIs) {
     rootLabel.appendChild(rootText);
     container.appendChild(rootLabel);
 
-    // Clean indented expandable subfolder labels underneath the account
     for (let f of acc.folders) {
       if (f.hasSubFolders || parentURIs.has(f.uri)) {
         let fLabel = document.createElement("label");
@@ -228,7 +226,7 @@ async function exportBackupJSON() {
 
   let payload = {
     schemaVersion: 2,
-    extensionVersion: "1.4.0",
+    extensionVersion: "1.5.0",
     exportedAt: new Date().toISOString(),
     accountKeys: freshTree.map((a) => a.key),
     startupFolderPath: stored.startupFolderPath || "",
@@ -249,7 +247,7 @@ async function exportBackupJSON() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  setStatus("Exported JSON backup (v1.4.0).");
+  setStatus("Exported JSON backup (v1.5.0).");
 }
 
 async function importBackupJSON(file) {
