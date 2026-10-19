@@ -1,6 +1,6 @@
 # SortFolders
 
-**SortFolders** is an open-source Thunderbird MailExtension designed to provide clean, centralized management for account ordering, custom folder sorting (`A-Z`, `Z-A`, and manual positioning), startup folder selection, and full JSON configuration backup and restore.
+**SortFolders** is an open-source Thunderbird MailExtension designed to provide clean, centralized management for account ordering, custom folder sorting (`A-Z`, `Z-A`, and manual positioning), startup folder selection, folder expansion state control, and full JSON configuration backup and restore.
 
 Developed and maintained by **CybTekSol [ https://github.com/CybTekSol ]** as a modern, lightweight successor to legacy XUL account and folder sorting utilities.
 
@@ -21,8 +21,8 @@ Developed and maintained by **CybTekSol [ https://github.com/CybTekSol ]** as a 
 
 - **Account Order Management:** Quickly move mail, feed, and local accounts up or down in the Thunderbird folder pane and persist the exact sequence directly to `MailServices.accounts`.
 - **Granular Folder Sorting:** Select any account and parent folder level (from the Account Root down to nested subfolder hierarchies) and reorder sibling folders manually or sort them automatically (`Sort A-Z` / `Sort Z-A`).
-- **Custom Startup Folder Selection:** Configure a specific default folder across any account to automatically open and focus whenever Thunderbird launches.
-- **Full JSON Backup & Restore:** Export your complete account order, custom `userSortOrder` folder integers across all hierarchies, and startup folder preference to a portable `.json` file, and restore your entire configuration in one click.
+- **Startup Folder & Expansion State Control:** Configure a specific default startup folder and override Thunderbird 158's first-account auto-expand behavior with four modes: **Collapse All Except Startup Folder**, **Expand All Folders**, **Use Custom Checked Folders List**, or **Thunderbird Default**.
+- **Full JSON Backup & Restore:** Export your complete account order, custom `userSortOrder` folder integers across all hierarchies, startup folder, and folder expansion state preferences to a portable `.json` file, and restore your entire configuration in one click.
 - **Native Dark & Light Theme Support:** Clean, dependency-free HTML5/CSS Grid dashboard that automatically adapts to your operating system and Thunderbird color scheme (`prefers-color-scheme`).
 
 ---
@@ -39,15 +39,15 @@ Developed and maintained by **CybTekSol [ https://github.com/CybTekSol ]** as a 
 
 SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's internal privileged APIs from the user interface and state management logic:
 
-- **Standard WebExtension Frontend (`ui/` & `background.js`):** All user interface rendering, interactive list sorting, startup preference storage (`browser.storage.local`), and JSON serialization/deserialization run inside standard, unprivileged WebExtension tabs and background scripts.
-- **Minimal ESM Experiment Bridge (`api/FolderSort/`):** The privileged `FolderSort` Experiment API (`implementation.js`) is kept intentionally thin, exposing only four focused methods (`getAccountTree`, `setAccountOrder`, `applyFolderOrder`, `restoreFolderOrders`, and `selectStartupFolder`) via `MailServices.sys.mjs` and `about:3pane`. If Mozilla alters internal folder pane methods in future Thunderbird releases, only the thin bridge requires adjustment.
+- **Standard WebExtension Frontend (`ui/` & `background.js`):** All user interface rendering, interactive list sorting, startup and expansion preference storage (`browser.storage.local`), and JSON serialization/deserialization run inside standard, unprivileged WebExtension tabs and background scripts.
+- **Minimal ESM Experiment Bridge (`api/FolderSort/`):** The privileged `FolderSort` Experiment API (`implementation.js`) is kept intentionally thin, exposing five focused methods (`getAccountTree`, `setAccountOrder`, `applyFolderOrder`, `restoreFolderOrders`, and `applyStartupState`) via `MailServices.sys.mjs` and `about:3pane`. If Mozilla alters internal folder pane methods in future Thunderbird releases, only the thin bridge requires adjustment.
 
 ---
 
 ## Installation
 
 ### Manual Install (.xpi)
-1. Download the latest `SortFolders-1.2.0-tb158.xpi` from the [Releases](https://github.com/CybTekSol/SortFolders/releases) section.
+1. Download the latest `SortFolders-1.3.0-tb158.xpi` from the [Releases](https://github.com/CybTekSol/SortFolders/releases) section.
 2. In Thunderbird, open **Tools > Add-ons and Themes** (or press `Ctrl + Shift + A`).
 3. Click the gear icon in the top right and select **Install Add-on From File...**
 4. Select the downloaded `.xpi` file and confirm installation.
@@ -59,12 +59,18 @@ SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's int
 1. **Launching SortFolders:** Click the **SortFolders** button on the Thunderbird toolbar, or open **Tools > SortFolders Manager** from the main menu bar.
 2. **Reordering Accounts:** In Panel **1. Account Order**, highlight an account, use **Move Up** or **Move Down** to set its position, and click **Save Account Order**.
 3. **Sorting Folders:** In Panel **2. Folder Sort Order**, select the target **Account** and **Parent Level**. Use **Move Up**, **Move Down**, **Sort A-Z**, or **Sort Z-A** to arrange the sibling folders, then click **Apply Folder Order** to immediately update the Thunderbird folder pane.
-4. **Setting a Startup Folder:** In Panel **3. Default Startup Folder**, choose your preferred folder from the dropdown (or select `-- Do Not Override Startup Folder --`) and click **Save Startup Folder**.
+4. **Setting Startup Folder & Expansion State:** In Panel **3. Startup & Folder Expansion State**, choose your **Startup Folder** and select an **Expansion Mode** (such as **Collapse All Except Startup Folder** or **Use Custom Checked Folders List Below**). Use **Test & Apply Expansion Now** to preview immediately, and click **Save Startup & Expansion Settings** to persist on launch.
 5. **Backing Up & Restoring:** In Panel **4. JSON Backup & Restore**, click **Export Backup (.json)** to save a timestamped snapshot (`SortFolders-Backup-YYYY-MM-DD.json`), or click **Restore from Backup (.json)** to apply a saved configuration file.
 
 ---
 
 ## Changelog
+
+### Changes in version 1.3.0:
+* Added **Folder Expansion State Control** to counteract Thunderbird 158.0's first-folder auto-expansion bug on restart.
+* Added four startup expansion modes: **Collapse All Except Startup Folder**, **Expand All Folders**, **Use Custom Checked Folders List**, and **Thunderbird Default**.
+* Added an interactive **Custom Expanded Folders** checklist for accounts and parent folders, complete with **Check All**, **Uncheck All**, and **Test & Apply Expansion Now** controls.
+* Upgraded JSON Backup & Restore to schema v2 (`startupExpandMode` and `expandedFolderURIs`) while maintaining full backward compatibility with v1.1.0/v1.2.0 backups.
 
 ### Changes in version 1.2.0:
 * Added custom extension icon set (`icon-16.png`, `icon-32.png`, `icon-48.png`, `icon-64.png`) across the Add-ons Manager, main toolbar button, Tools menu entry, manager tab favicon, and UI header banner.

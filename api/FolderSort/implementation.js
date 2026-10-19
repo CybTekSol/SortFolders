@@ -25,6 +25,7 @@ function serializeFolders(parentFolder, depth = 0) {
       uri: folder.URI,
       parentURI: parentFolder.URI,
       depth: depth,
+      hasSubFolders: Boolean(folder.hasSubFolders),
       userSortOrder: folder.userSortOrder || 0,
       flags: folder.flags
     });
@@ -49,6 +50,105 @@ function refreshThreePaneFolderTree() {
         contentWin.folderPane._rebuild?.();
       }
     }
+  }
+}
+
+function buildAncestorURISet(targetURI) {
+  let set = new Set();
+  if (!targetURI) {
+    return set;
+  }
+  let folder = MailServices.folderLookup.getFolderForURL(targetURI);
+  while (folder) {
+    set.add(folder.URI);
+    folder = folder.parent;
+  }
+  return set;
+}
+
+function setRowExpansion(tree, row, shouldExpand) {
+  if (!tree || !row) {
+    return;
+  }
+  let isClosed = row.classList.contains("collapsed");
+  if (shouldExpand && isClosed) {
+    if (typeof tree.expandRow === "function") {
+      tree.expandRow(row);
+    } else {
+      row.classList.remove("collapsed");
+    }
+  } else if (!shouldExpand && !isClosed) {
+    if (typeof tree.collapseRow === "function") {
+      tree.collapseRow(row);
+    } else {
+      row.classList.add("collapsed");
+    }
+  }
+}
+
+function applyFolderTreeExpansion(contentWin, expandMode, startupURI, customExpandedURIs) {
+  let tree = contentWin.folderTree || contentWin.document?.getElementById("folderTree");
+  if (!tree || expandMode === "default") {
+    return;
+  }
+
+  let allowedSet = new Set();
+  if (expandMode === "only_startup") {
+    allowedSet = buildAncestorURISet(startupURI);
+  } else if (expandMode === "custom") {
+    for (let uri of customExpandedURIs) {
+      for (let anc of buildAncestorURISet(uri)) {
+        allowedSet.add(anc);
+      }
+    }
+    if (startupURI) {
+      for (let anc of buildAncestorURISet(startupURI)) {
+        allowedSet.add(anc);
+      }
+    }
+  }
+
+  // Pass 1: Top-down expansion so lazy child rows exist in the DOM
+  for (let pass = 0; pass < 6; pass++) {
+    let changed = false;
+    let rows = Array.from(tree.querySelectorAll("li[is='folder-tree-row']"));
+    for (let row of rows) {
+      let uri = row.uri || row.dataset?.uri;
+      if (!uri) {
+        continue;
+      }
+      let wantOpen = (expandMode === "expand_all") || allowedSet.has(uri);
+      if (wantOpen && row.classList.contains("collapsed")) {
+        setRowExpansion(tree, row, true);
+        changed = true;
+      }
+    }
+    if (!changed) {
+      break;
+    }
+  }
+
+  // Pass 2: Bottom-up collapse of any row not in the target set (fixes TB 158 first-folder bug)
+  if (expandMode !== "expand_all") {
+    let rows = Array.from(tree.querySelectorAll("li[is='folder-tree-row']")).reverse();
+    for (let row of rows) {
+      let uri = row.uri || row.dataset?.uri;
+      if (!uri) {
+        continue;
+      }
+      if (!allowedSet.has(uri) && !row.classList.contains("collapsed")) {
+        setRowExpansion(tree, row, false);
+      }
+    }
+  }
+
+  // Persist open state to Thunderbird's xulStore if folderPane exposes _saveOpenStates
+  try {
+    if (contentWin.folderPane && typeof contentWin.folderPane._saveOpenStates === "function") {
+      contentWin.folderPane._saveOpenStates();
+    }
+  } catch (e) {
+    // Ignore if internal method signature differs
   }
 }
 
@@ -110,15 +210,26 @@ var FolderSort = class extends ExtensionCommon.ExtensionAPI {
           refreshThreePaneFolderTree();
         },
 
-        async selectStartupFolder(folderURI) {
+        async applyStartupState(startupURI, expandMode, customExpandedURIs) {
           let win = Services.wm.getMostRecentWindow("mail:3pane");
           if (!win || !win.gTabmail) {
             return;
           }
           let firstTab = win.gTabmail.tabInfo[0];
           let contentWin = firstTab?.chromeBrowser?.contentWindow;
-          if (contentWin && typeof contentWin.displayFolder === "function") {
-            contentWin.displayFolder(folderURI);
+          if (!contentWin) {
+            return;
+          }
+
+          applyFolderTreeExpansion(
+            contentWin,
+            expandMode || "default",
+            startupURI || "",
+            Array.isArray(customExpandedURIs) ? customExpandedURIs : []
+          );
+
+          if (startupURI && typeof contentWin.displayFolder === "function") {
+            contentWin.displayFolder(startupURI);
           }
         }
       }

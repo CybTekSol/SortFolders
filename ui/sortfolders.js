@@ -72,12 +72,70 @@ function populateSiblingFolders(account, parentURI) {
   }
 }
 
+function populateExpandableChecklist(accounts, checkedURIs) {
+  let container = document.getElementById("expandable-folder-list");
+  container.innerHTML = "";
+  let checkedSet = new Set(Array.isArray(checkedURIs) ? checkedURIs : []);
+
+  for (let acc of accounts) {
+    let rootLabel = document.createElement("label");
+    rootLabel.className = "checkbox-item account-root";
+
+    let rootCb = document.createElement("input");
+    rootCb.type = "checkbox";
+    rootCb.value = acc.rootURI;
+    rootCb.checked = checkedSet.has(acc.rootURI);
+
+    let rootText = document.createElement("span");
+    rootText.textContent = `[Account] ${acc.name}`;
+
+    rootLabel.appendChild(rootCb);
+    rootLabel.appendChild(rootText);
+    container.appendChild(rootLabel);
+
+    for (let f of acc.folders) {
+      if (f.hasSubFolders) {
+        let fLabel = document.createElement("label");
+        fLabel.className = "checkbox-item";
+
+        let fCb = document.createElement("input");
+        fCb.type = "checkbox";
+        fCb.value = f.uri;
+        fCb.checked = checkedSet.has(f.uri);
+
+        let fText = document.createElement("span");
+        fText.textContent = `${acc.name} : ${"—".repeat(f.depth + 1)} ${f.name}`;
+
+        fLabel.appendChild(fCb);
+        fLabel.appendChild(fText);
+        container.appendChild(fLabel);
+      }
+    }
+  }
+}
+
+function getCheckedExpandedURIs() {
+  let checkboxes = document.querySelectorAll("#expandable-folder-list input[type='checkbox']:checked");
+  return Array.from(checkboxes).map((cb) => cb.value);
+}
+
+function updateCustomExpandBoxVisibility() {
+  let mode = document.getElementById("startup-expand-mode").value;
+  let box = document.getElementById("custom-expand-container");
+  if (mode === "custom") {
+    box.classList.remove("disabled");
+  } else {
+    box.classList.add("disabled");
+  }
+}
+
 async function loadState() {
   accountData = await browser.FolderSort.getAccountTree();
 
   let accList = document.getElementById("account-list");
   let folderAccSelect = document.getElementById("folder-account-select");
   let startupSelect = document.getElementById("startup-folder-select");
+  let expandModeSelect = document.getElementById("startup-expand-mode");
 
   accList.innerHTML = "";
   folderAccSelect.innerHTML = "";
@@ -94,6 +152,11 @@ async function loadState() {
     opt2.textContent = acc.name;
     folderAccSelect.appendChild(opt2);
 
+    let rootStartupOpt = document.createElement("option");
+    rootStartupOpt.value = acc.rootURI;
+    rootStartupOpt.textContent = `${acc.name} [Account Root]`;
+    startupSelect.appendChild(rootStartupOpt);
+
     for (let f of acc.folders) {
       let sOpt = document.createElement("option");
       sOpt.value = f.uri;
@@ -106,15 +169,25 @@ async function loadState() {
     populateParentLevels(accountData[0]);
   }
 
-  let stored = await browser.storage.local.get("startupFolderPath");
-  if (stored && stored.startupFolderPath) {
-    startupSelect.value = stored.startupFolderPath;
-  }
+  let stored = await browser.storage.local.get({
+    startupFolderPath: "",
+    startupExpandMode: "default",
+    expandedFolderURIs: []
+  });
+
+  startupSelect.value = stored.startupFolderPath || "";
+  expandModeSelect.value = stored.startupExpandMode || "default";
+  populateExpandableChecklist(accountData, stored.expandedFolderURIs);
+  updateCustomExpandBoxVisibility();
 }
 
 async function exportBackupJSON() {
   let freshTree = await browser.FolderSort.getAccountTree();
-  let stored = await browser.storage.local.get("startupFolderPath");
+  let stored = await browser.storage.local.get({
+    startupFolderPath: "",
+    startupExpandMode: "default",
+    expandedFolderURIs: []
+  });
 
   let folderEntries = [];
   for (let acc of freshTree) {
@@ -137,11 +210,13 @@ async function exportBackupJSON() {
   }
 
   let payload = {
-    schemaVersion: 1,
-    extensionVersion: "1.2.0",
+    schemaVersion: 2,
+    extensionVersion: "1.3.0",
     exportedAt: new Date().toISOString(),
     accountKeys: freshTree.map((a) => a.key),
-    startupFolderPath: (stored && stored.startupFolderPath) ? stored.startupFolderPath : "",
+    startupFolderPath: stored.startupFolderPath || "",
+    startupExpandMode: stored.startupExpandMode || "default",
+    expandedFolderURIs: Array.isArray(stored.expandedFolderURIs) ? stored.expandedFolderURIs : [],
     folderOrders: folderEntries
   };
 
@@ -157,7 +232,7 @@ async function exportBackupJSON() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  setStatus("Exported JSON backup.");
+  setStatus("Exported JSON backup (v1.3.0 schema).");
 }
 
 async function importBackupJSON(file) {
@@ -176,10 +251,17 @@ async function importBackupJSON(file) {
     await browser.FolderSort.restoreFolderOrders(payload.folderOrders);
   }
 
-  if (typeof payload.startupFolderPath === "string") {
-    await browser.storage.local.set({ startupFolderPath: payload.startupFolderPath });
-  }
+  let newStartupPath = typeof payload.startupFolderPath === "string" ? payload.startupFolderPath : "";
+  let newExpandMode = typeof payload.startupExpandMode === "string" ? payload.startupExpandMode : "default";
+  let newExpandedURIs = Array.isArray(payload.expandedFolderURIs) ? payload.expandedFolderURIs : [];
 
+  await browser.storage.local.set({
+    startupFolderPath: newStartupPath,
+    startupExpandMode: newExpandMode,
+    expandedFolderURIs: newExpandedURIs
+  });
+
+  await browser.FolderSort.applyStartupState(newStartupPath, newExpandMode, newExpandedURIs);
   await loadState();
   setStatus("Backup restored and applied.");
 }
@@ -191,6 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let folderAccSelect = document.getElementById("folder-account-select");
   let parentSelect = document.getElementById("parent-folder-select");
   let siblingList = document.getElementById("sibling-folder-list");
+  let expandModeSelect = document.getElementById("startup-expand-mode");
   let fileInput = document.getElementById("file-import-json");
 
   document.getElementById("acc-up").addEventListener("click", () => moveSelectedOption(accList, -1));
@@ -229,10 +312,41 @@ document.addEventListener("DOMContentLoaded", () => {
     await loadState();
   });
 
+  expandModeSelect.addEventListener("change", () => {
+    updateCustomExpandBoxVisibility();
+  });
+
+  document.getElementById("exp-check-all").addEventListener("click", () => {
+    let cbs = document.querySelectorAll("#expandable-folder-list input[type='checkbox']");
+    cbs.forEach((cb) => { cb.checked = true; });
+  });
+
+  document.getElementById("exp-uncheck-all").addEventListener("click", () => {
+    let cbs = document.querySelectorAll("#expandable-folder-list input[type='checkbox']");
+    cbs.forEach((cb) => { cb.checked = false; });
+  });
+
+  document.getElementById("startup-test-now").addEventListener("click", async () => {
+    let startupURI = document.getElementById("startup-folder-select").value;
+    let expandMode = expandModeSelect.value;
+    let customURIs = getCheckedExpandedURIs();
+    await browser.FolderSort.applyStartupState(startupURI, expandMode, customURIs);
+    setStatus("Expansion state applied to 3-pane window.");
+  });
+
   document.getElementById("startup-save").addEventListener("click", async () => {
-    let uri = document.getElementById("startup-folder-select").value;
-    await browser.storage.local.set({ startupFolderPath: uri });
-    setStatus("Startup folder preference saved.");
+    let startupURI = document.getElementById("startup-folder-select").value;
+    let expandMode = expandModeSelect.value;
+    let customURIs = getCheckedExpandedURIs();
+
+    await browser.storage.local.set({
+      startupFolderPath: startupURI,
+      startupExpandMode: expandMode,
+      expandedFolderURIs: customURIs
+    });
+
+    await browser.FolderSort.applyStartupState(startupURI, expandMode, customURIs);
+    setStatus("Startup folder & expansion preferences saved and applied.");
   });
 
   document.getElementById("btn-export-json").addEventListener("click", () => {

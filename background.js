@@ -6,12 +6,25 @@ async function openManagerTab() {
   });
 }
 
-async function applyStartupFolder() {
-  let stored = await browser.storage.local.get("startupFolderPath");
-  if (stored && stored.startupFolderPath) {
-    setTimeout(() => {
-      browser.FolderSort.selectStartupFolder(stored.startupFolderPath).catch(console.error);
-    }, 900);
+async function runStartupState() {
+  let stored = await browser.storage.local.get({
+    startupFolderPath: "",
+    startupExpandMode: "default",
+    expandedFolderURIs: []
+  });
+
+  if (stored.startupFolderPath || stored.startupExpandMode !== "default") {
+    let applyFn = () => {
+      browser.FolderSort.applyStartupState(
+        stored.startupFolderPath || "",
+        stored.startupExpandMode || "default",
+        Array.isArray(stored.expandedFolderURIs) ? stored.expandedFolderURIs : []
+      ).catch(console.error);
+    };
+
+    // Initial pass once 3-pane loads, plus a second pass to override late TB 158 session restoration
+    setTimeout(applyFn, 900);
+    setTimeout(applyFn, 2200);
   }
 }
 
@@ -35,4 +48,4 @@ browser.browserAction.onClicked.addListener(() => {
   openManagerTab();
 });
 
-applyStartupFolder();
+runStartupState();

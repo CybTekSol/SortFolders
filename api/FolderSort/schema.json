@@ -53,13 +53,22 @@
         ]
       },
       {
-        "name": "selectStartupFolder",
+        "name": "applyStartupState",
         "type": "function",
         "async": true,
         "parameters": [
           {
-            "name": "folderURI",
+            "name": "startupURI",
             "type": "string"
+          },
+          {
+            "name": "expandMode",
+            "type": "string"
+          },
+          {
+            "name": "customExpandedURIs",
+            "type": "array",
+            "items": { "type": "string" }
           }
         ]
       }
