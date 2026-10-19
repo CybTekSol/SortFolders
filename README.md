@@ -47,7 +47,7 @@ SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's int
 ## Installation
 
 ### Manual Install (.xpi)
-1. Download the latest `SortFolders-1.5.0-tb158.xpi` from the [Releases](https://github.com/CybTekSol/SortFolders/releases) section.
+1. Download the latest `SortFolders-1.5.0.xpi` from the [Releases](https://github.com/CybTekSol/SortFolders/releases) section.
 2. In Thunderbird, open **Tools > Add-ons and Themes** (or press `Ctrl + Shift + A`).
 3. Click the gear icon in the top right and select **Install Add-on From File...**
 4. Select the downloaded `.xpi` file and confirm installation.
