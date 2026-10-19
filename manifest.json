@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "SortFolders",
   "description": "Clean-room personal manager for account ordering, folder sorting, and startup folder selection in Thunderbird 158+.",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": "CybTekSol [ https://github.com/CybTekSol ]",
   "browser_specific_settings": {
     "gecko": {

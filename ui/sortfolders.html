@@ -11,7 +11,7 @@
   <header>
     <div class="brand">
       <img src="../icons/icon-48.png" alt="SortFolders Icon" class="brand-icon" width="36" height="36">
-      <h1>SortFolders Manager <span class="version-tag">v1.3.0</span></h1>
+      <h1>SortFolders Manager <span class="version-tag">v1.4.0</span></h1>
     </div>
     <span id="status-banner">Ready</span>
   </header>
@@ -50,7 +50,7 @@
 
     <section class="card full-width">
       <h2>3. Startup &amp; Folder Expansion State</h2>
-      <p>Counteract Thunderbird 158's first-account auto-expand behavior and control exactly which folders open at launch.</p>
+      <p>Control which folder opens at launch and independently choose which accounts or subfolders (such as Proton's <em>Folders</em>) are expanded or collapsed.</p>
       <div class="field-row">
         <label for="startup-folder-select">Startup Folder:</label>
         <select id="startup-folder-select"></select>
@@ -67,10 +67,11 @@
 
       <div id="custom-expand-container" class="custom-expand-box">
         <div class="custom-expand-header">
-          <span><strong>Custom Expanded Folders:</strong> Check accounts and parent folders to keep expanded (uncheck to keep collapsed):</span>
+          <span><strong>Custom Expanded Folders:</strong> You can check a subfolder (e.g., <em>Folders</em>) while leaving its Account unchecked so the subfolder is pre-expanded inside the collapsed account:</span>
           <div class="btn-row">
             <button id="exp-check-all" type="button">Check All</button>
             <button id="exp-uncheck-all" type="button">Uncheck All</button>
+            <button id="exp-subfolders-only" type="button">Check Subfolders Only</button>
           </div>
         </div>
         <div id="expandable-folder-list" class="checkbox-list"></div>

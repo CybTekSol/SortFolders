@@ -133,28 +133,40 @@ select {
 }
 
 .checkbox-list {
-  max-height: 220px;
+  max-height: 250px;
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 8px;
+  padding: 10px;
   background: var(--card-bg);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .checkbox-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.92rem;
+  font-size: 0.93rem;
   cursor: pointer;
 }
 
 .checkbox-item.account-root {
   font-weight: 600;
-  margin-top: 4px;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.checkbox-item.account-root:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.checkbox-item.subfolder-item {
+  padding-left: 18px;
 }
 
 .btn-row {

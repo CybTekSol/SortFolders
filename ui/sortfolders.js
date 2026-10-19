@@ -44,12 +44,12 @@ function populateParentLevels(account) {
 
   let rootOpt = document.createElement("option");
   rootOpt.value = account.rootURI;
-  rootOpt.textContent = "[Account Root] " + account.name;
+  rootOpt.textContent = account.name;
   parentSelect.appendChild(rootOpt);
 
   let parentURIs = new Set(account.folders.map((f) => f.parentURI));
   for (let folder of account.folders) {
-    if (parentURIs.has(folder.uri)) {
+    if (folder.hasSubFolders || parentURIs.has(folder.uri)) {
       let opt = document.createElement("option");
       opt.value = folder.uri;
       opt.textContent = "—".repeat(folder.depth + 1) + " " + folder.name;
@@ -78,33 +78,39 @@ function populateExpandableChecklist(accounts, checkedURIs) {
   let checkedSet = new Set(Array.isArray(checkedURIs) ? checkedURIs : []);
 
   for (let acc of accounts) {
+    let parentURIs = new Set(acc.folders.map((f) => f.parentURI));
+
+    // Clean Account label matching the Folder Sort Order section
     let rootLabel = document.createElement("label");
     rootLabel.className = "checkbox-item account-root";
 
     let rootCb = document.createElement("input");
     rootCb.type = "checkbox";
     rootCb.value = acc.rootURI;
+    rootCb.dataset.isAccountRoot = "true";
     rootCb.checked = checkedSet.has(acc.rootURI);
 
     let rootText = document.createElement("span");
-    rootText.textContent = `[Account] ${acc.name}`;
+    rootText.textContent = acc.name;
 
     rootLabel.appendChild(rootCb);
     rootLabel.appendChild(rootText);
     container.appendChild(rootLabel);
 
+    // Clean indented expandable subfolder labels underneath the account
     for (let f of acc.folders) {
-      if (f.hasSubFolders) {
+      if (f.hasSubFolders || parentURIs.has(f.uri)) {
         let fLabel = document.createElement("label");
-        fLabel.className = "checkbox-item";
+        fLabel.className = "checkbox-item subfolder-item";
 
         let fCb = document.createElement("input");
         fCb.type = "checkbox";
         fCb.value = f.uri;
+        fCb.dataset.isAccountRoot = "false";
         fCb.checked = checkedSet.has(f.uri);
 
         let fText = document.createElement("span");
-        fText.textContent = `${acc.name} : ${"—".repeat(f.depth + 1)} ${f.name}`;
+        fText.textContent = `${"—".repeat(f.depth + 1)} ${f.name}`;
 
         fLabel.appendChild(fCb);
         fLabel.appendChild(fText);
@@ -130,6 +136,9 @@ function updateCustomExpandBoxVisibility() {
 }
 
 async function loadState() {
+  let prevSelectedAcc = document.getElementById("folder-account-select").value;
+  let prevSelectedParent = document.getElementById("parent-folder-select").value;
+
   accountData = await browser.FolderSort.getAccountTree();
 
   let accList = document.getElementById("account-list");
@@ -144,7 +153,7 @@ async function loadState() {
   for (let acc of accountData) {
     let opt1 = document.createElement("option");
     opt1.value = acc.key;
-    opt1.textContent = `${acc.name} (${acc.type})`;
+    opt1.textContent = acc.name;
     accList.appendChild(opt1);
 
     let opt2 = document.createElement("option");
@@ -154,19 +163,27 @@ async function loadState() {
 
     let rootStartupOpt = document.createElement("option");
     rootStartupOpt.value = acc.rootURI;
-    rootStartupOpt.textContent = `${acc.name} [Account Root]`;
+    rootStartupOpt.textContent = acc.name;
     startupSelect.appendChild(rootStartupOpt);
 
     for (let f of acc.folders) {
       let sOpt = document.createElement("option");
       sOpt.value = f.uri;
-      sOpt.textContent = `${acc.name} : ${"—".repeat(f.depth)} ${f.name}`;
+      sOpt.textContent = `${acc.name} : ${"—".repeat(f.depth + 1)} ${f.name}`;
       startupSelect.appendChild(sOpt);
     }
   }
 
   if (accountData.length > 0) {
-    populateParentLevels(accountData[0]);
+    let targetAcc = accountData.find((a) => a.key === prevSelectedAcc) || accountData[0];
+    folderAccSelect.value = targetAcc.key;
+    populateParentLevels(targetAcc);
+
+    let parentSelect = document.getElementById("parent-folder-select");
+    if (prevSelectedParent && Array.from(parentSelect.options).some((o) => o.value === prevSelectedParent)) {
+      parentSelect.value = prevSelectedParent;
+      populateSiblingFolders(targetAcc, prevSelectedParent);
+    }
   }
 
   let stored = await browser.storage.local.get({
@@ -211,7 +228,7 @@ async function exportBackupJSON() {
 
   let payload = {
     schemaVersion: 2,
-    extensionVersion: "1.3.0",
+    extensionVersion: "1.4.0",
     exportedAt: new Date().toISOString(),
     accountKeys: freshTree.map((a) => a.key),
     startupFolderPath: stored.startupFolderPath || "",
@@ -232,7 +249,7 @@ async function exportBackupJSON() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  setStatus("Exported JSON backup (v1.3.0 schema).");
+  setStatus("Exported JSON backup (v1.4.0).");
 }
 
 async function importBackupJSON(file) {
@@ -324,6 +341,13 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("exp-uncheck-all").addEventListener("click", () => {
     let cbs = document.querySelectorAll("#expandable-folder-list input[type='checkbox']");
     cbs.forEach((cb) => { cb.checked = false; });
+  });
+
+  document.getElementById("exp-subfolders-only").addEventListener("click", () => {
+    let cbs = document.querySelectorAll("#expandable-folder-list input[type='checkbox']");
+    cbs.forEach((cb) => {
+      cb.checked = (cb.dataset.isAccountRoot === "false");
+    });
   });
 
   document.getElementById("startup-test-now").addEventListener("click", async () => {
