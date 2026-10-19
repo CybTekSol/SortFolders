@@ -1,0 +1,68 @@
+[
+  {
+    "namespace": "FolderSort",
+    "description": "Direct interface to Thunderbird 158+ account and folder sorting engines.",
+    "functions": [
+      {
+        "name": "getAccountTree",
+        "type": "function",
+        "async": true,
+        "parameters": []
+      },
+      {
+        "name": "setAccountOrder",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "accountKeys",
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        ]
+      },
+      {
+        "name": "applyFolderOrder",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "orderedURIs",
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        ]
+      },
+      {
+        "name": "restoreFolderOrders",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "folderEntries",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uri": { "type": "string" },
+                "userSortOrder": { "type": "integer" }
+              },
+              "required": ["uri", "userSortOrder"]
+            }
+          }
+        ]
+      },
+      {
+        "name": "selectStartupFolder",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "folderURI",
+            "type": "string"
+          }
+        ]
+      }
+    ]
+  }
+]

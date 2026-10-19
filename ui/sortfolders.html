@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SortFolders Manager</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../icons/icon-16.png">
+  <link rel="stylesheet" href="sortfolders.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <img src="../icons/icon-48.png" alt="SortFolders Icon" class="brand-icon" width="36" height="36">
+      <h1>SortFolders Manager <span class="version-tag">v1.2.0</span></h1>
+    </div>
+    <span id="status-banner">Ready</span>
+  </header>
+
+  <main class="grid-layout">
+    <section class="card">
+      <h2>1. Account Order</h2>
+      <p>Select an account and move it up or down in the folder pane.</p>
+      <select id="account-list" size="10"></select>
+      <div class="btn-row">
+        <button id="acc-up" type="button">Move Up</button>
+        <button id="acc-down" type="button">Move Down</button>
+        <button id="acc-save" class="primary" type="button">Save Account Order</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. Folder Sort Order</h2>
+      <div class="field-row">
+        <label for="folder-account-select">Account:</label>
+        <select id="folder-account-select"></select>
+      </div>
+      <div class="field-row">
+        <label for="parent-folder-select">Parent Level:</label>
+        <select id="parent-folder-select"></select>
+      </div>
+      <select id="sibling-folder-list" size="12"></select>
+      <div class="btn-row">
+        <button id="fld-up" type="button">Move Up</button>
+        <button id="fld-down" type="button">Move Down</button>
+        <button id="fld-az" type="button">Sort A-Z</button>
+        <button id="fld-za" type="button">Sort Z-A</button>
+        <button id="fld-save" class="primary" type="button">Apply Folder Order</button>
+      </div>
+    </section>
+
+    <section class="card full-width">
+      <h2>3. Default Startup Folder</h2>
+      <div class="field-row">
+        <label for="startup-folder-select">Folder to open at launch:</label>
+        <select id="startup-folder-select"></select>
+        <button id="startup-save" class="primary" type="button">Save Startup Folder</button>
+      </div>
+    </section>
+
+    <section class="card full-width">
+      <h2>4. JSON Backup &amp; Restore</h2>
+      <p>Export or restore your complete account order, custom folder sort positions, and startup folder preference.</p>
+      <div class="btn-row">
+        <button id="btn-export-json" type="button">Export Backup (.json)</button>
+        <button id="btn-import-json" type="button">Restore from Backup (.json)</button>
+        <input id="file-import-json" type="file" accept=".json,application/json" style="display: none;">
+      </div>
+    </section>
+  </main>
+
+  <script src="sortfolders.js"></script>
+</body>
+</html>
