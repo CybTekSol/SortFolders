@@ -1,7 +1,7 @@
 [
   {
     "namespace": "FolderSort",
-    "description": "Direct interface to Thunderbird 158+ account and folder sorting engines.",
+    "description": "Direct interface to Thunderbird 140.0+ account and folder sorting engines.",
     "functions": [
       {
         "name": "getAccountTree",

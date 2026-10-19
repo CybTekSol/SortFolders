@@ -412,7 +412,6 @@ var FolderSort = class extends ExtensionCommon.ExtensionAPI {
             if (folder) {
               persistFolderCustomOrder(folder, index);
 
-              // If this folder lives inside [Gmail], track the earliest sort position for the [Gmail] container itself
               if (folder.parent && isGmailNoselectContainer(folder.parent)) {
                 let pURI = folder.parent.URI;
                 if (!gmailContainerMinOrder.has(pURI)) {

@@ -226,7 +226,7 @@ async function exportBackupJSON() {
 
   let payload = {
     schemaVersion: 2,
-    extensionVersion: "1.5.0",
+    extensionVersion: "1.5.1",
     exportedAt: new Date().toISOString(),
     accountKeys: freshTree.map((a) => a.key),
     startupFolderPath: stored.startupFolderPath || "",
@@ -247,7 +247,7 @@ async function exportBackupJSON() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  setStatus("Exported JSON backup (v1.5.0).");
+  setStatus("Exported JSON backup (v1.5.1).");
 }
 
 async function importBackupJSON(file) {

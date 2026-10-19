@@ -21,7 +21,7 @@ Developed and maintained by **CybTekSol [ https://github.com/CybTekSol ]** as a 
 
 - **Account Order Management:** Quickly move mail, feed, and local accounts up or down in the Thunderbird folder pane and persist the exact sequence directly to `MailServices.accounts`.
 - **Granular Folder Sorting (Including `[Gmail]` Hoisting & Proton Mail):** Automatically detects IMAP noselect `[Gmail]` / `[Google Mail]` containers and hoists their subfolders (`Sent Mail`, `All Mail`, `Trash`, `Starred`, `Spam`, `Drafts`) into the main Gmail account folder list so all Gmail folders and labels can be sorted together as a single unified list.
-- **Startup Folder & Independent Subfolder Expansion:** Configure a default startup folder and override Thunderbird 158's first-account auto-expand behavior. Supports pre-expanding nested subfolders (such as Proton Mail's `Folders` container) while leaving the parent account collapsed until opened.
+- **Startup Folder & Independent Subfolder Expansion:** Configure a default startup folder and override Thunderbird's first-account auto-expand behavior on restart. Supports pre-expanding nested subfolders (such as Proton Mail's `Folders` container) while leaving the parent account collapsed until opened.
 - **Full JSON Backup & Restore:** Export your complete account order, custom `userSortOrder` folder integers across all hierarchies, startup folder, and folder expansion state preferences to a portable `.json` file, and restore your entire configuration in one click.
 - **Native Dark & Light Theme Support:** Clean, dependency-free HTML5/CSS Grid dashboard that automatically adapts to your operating system and Thunderbird color scheme (`prefers-color-scheme`).
 
@@ -29,7 +29,7 @@ Developed and maintained by **CybTekSol [ https://github.com/CybTekSol ]** as a 
 
 ## Compatibility
 
-- **Thunderbird Version:** 158.0 and Newer
+- **Thunderbird Version:** 140.0 and Newer (including 140 ESR, 153 ESR, and 158+ Release channels)
 
 - **OS Tested:** Windows 10/11 (including IoT Enterprise / LTSC), Linux (LMDE7, Arch/EndeavourOS), macOS.
 
@@ -47,7 +47,7 @@ SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's int
 ## Installation
 
 ### Manual Install (.xpi)
-1. Download the latest `SortFolders-1.5.0.xpi` from the [Releases](https://github.com/CybTekSol/SortFolders/releases) section.
+1. Download the latest `SortFolders-v1.5.1.xpi` from the [Releases](https://github.com/CybTekSol/SortFolders/releases) section.
 2. In Thunderbird, open **Tools > Add-ons and Themes** (or press `Ctrl + Shift + A`).
 3. Click the gear icon in the top right and select **Install Add-on From File...**
 4. Select the downloaded `.xpi` file and confirm installation.
@@ -58,13 +58,17 @@ SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's int
 
 1. **Launching SortFolders:** Click the **SortFolders** button on the Thunderbird toolbar, or open **Tools > SortFolders Manager** from the main menu bar.
 2. **Reordering Accounts:** In Panel **1. Account Order**, highlight an account, use **Move Up** or **Move Down** to set its position, and click **Save Account Order**.
-3. **Sorting Folders:** In Panel **2. Folder Sort Order**, select the target **Account** and **Parent Level**. Use **Move Up**, **Move Down**, **Sort A-Z**, or **Sort Z-A** to arrange the sibling folders, then click **Apply Folder Order** to immediately update the Thunderbird folder pane.
+3. **Sorting Folders:** In Panel **2. Folder Sort Order**, select the target **Account** and **Parent Level**. Use **Move Up**, **Move Down**, **Sort A-Z**, or **Sort Z-A** to arrange the sibling folders, then click **Apply Folder Order to THIS Account** before switching to another account or parent level.
 4. **Setting Startup Folder & Expansion State:** In Panel **3. Startup & Folder Expansion State**, choose your **Startup Folder** and select an **Expansion Mode**. In **Use Custom Checked Folders List Below**, you can check nested containers (like Proton's `Folders`) while leaving the parent account unchecked so the subfolder stays pre-expanded inside the collapsed account.
 5. **Backing Up & Restoring:** In Panel **4. JSON Backup & Restore**, click **Export Backup (.json)** to save a timestamped snapshot (`SortFolders-Backup-YYYY-MM-DD.json`), or click **Restore from Backup (.json)** to apply a saved configuration file.
 
 ---
 
 ## Changelog
+
+### Changes in version 1.5.1:
+* Expanded compatibility by lowering `strict_min_version` to `140.0` in `manifest.json`, supporting Thunderbird 140 ESR, 153 ESR, and 158+ Release builds with a single unified package.
+* Standardized release package naming to `SortFolders-v1.5.1.xpi`.
 
 ### Changes in version 1.5.0:
 * Fixed Gmail sorting and empty `[Gmail]` folder lists by detecting `[Gmail]` / `[Google Mail]` IMAP noselect containers via deep `rootFolder.descendants` traversal and hoisting their child folders (`Sent Mail`, `All Mail`, `Trash`, `Starred`, `Drafts`, `Spam`, `Important`) directly into the Gmail Account Root sibling list—matching Thunderbird's flattened visual folder pane.
@@ -76,7 +80,7 @@ SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's int
 * Added independent subfolder pre-expansion support: users can now check nested subfolders (such as Proton Mail's `Folders`) while leaving the parent Account unchecked (collapsed), plus a **Check Subfolders Only** quick-select button.
 
 ### Changes in version 1.3.0:
-* Added **Folder Expansion State Control** to counteract Thunderbird 158.0's first-folder auto-expansion bug on restart.
+* Added **Folder Expansion State Control** to counteract Thunderbird's first-folder auto-expansion bug on restart.
 * Added four startup expansion modes: **Collapse All Except Startup Folder**, **Expand All Folders**, **Use Custom Checked Folders List**, and **Thunderbird Default**.
 * Added an interactive **Custom Expanded Folders** checklist for accounts and parent folders, complete with **Check All**, **Uncheck All**, and **Test & Apply Expansion Now** controls.
 * Upgraded JSON Backup & Restore to schema v2 (`startupExpandMode` and `expandedFolderURIs`) while maintaining full backward compatibility with v1.1.0/v1.2.0 backups.
@@ -91,7 +95,7 @@ SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's int
 * Added `restoreFolderOrders` batch API method to `api/FolderSort/schema.json` and `implementation.js`.
 
 ### Changes in version 1.0.0:
-* Initial clean-room MailExtension release for Thunderbird 158+.
+* Initial clean-room MailExtension release.
 * Implemented Account Order manager, per-level Folder Sort Order manager (`Move Up/Down`, `Sort A-Z`, `Sort Z-A`), and Default Startup Folder selector.
 
 ---

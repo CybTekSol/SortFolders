@@ -22,7 +22,7 @@ async function runStartupState() {
       ).catch(console.error);
     };
 
-    // Initial pass once 3-pane loads, plus a second pass to override late TB 158 session restoration
+    // Initial pass once 3-pane loads, plus a second pass to override late session restoration
     setTimeout(applyFn, 900);
     setTimeout(applyFn, 2200);
   }
