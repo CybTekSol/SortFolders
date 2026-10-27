@@ -52,7 +52,7 @@ function populateParentLevels(account) {
     if (folder.hasSubFolders || parentURIs.has(folder.uri)) {
       let opt = document.createElement("option");
       opt.value = folder.uri;
-      opt.textContent = "â€”".repeat(folder.depth + 1) + " " + folder.name;
+      opt.textContent = "—".repeat(folder.depth + 1) + " " + folder.name;
       parentSelect.appendChild(opt);
     }
   }
@@ -108,7 +108,7 @@ function populateExpandableChecklist(accounts, checkedURIs) {
         fCb.checked = checkedSet.has(f.uri);
 
         let fText = document.createElement("span");
-        fText.textContent = `${"â€”".repeat(f.depth + 1)} ${f.name}`;
+        fText.textContent = `${"—".repeat(f.depth + 1)} ${f.name}`;
 
         fLabel.appendChild(fCb);
         fLabel.appendChild(fText);
@@ -167,7 +167,7 @@ async function loadState() {
     for (let f of acc.folders) {
       let sOpt = document.createElement("option");
       sOpt.value = f.uri;
-      sOpt.textContent = `${acc.name} : ${"â€”".repeat(f.depth + 1)} ${f.name}`;
+      sOpt.textContent = `${acc.name} : ${"—".repeat(f.depth + 1)} ${f.name}`;
       startupSelect.appendChild(sOpt);
     }
   }
@@ -226,7 +226,7 @@ async function exportBackupJSON() {
 
   let payload = {
     schemaVersion: 2,
-    extensionVersion: "1.5.1",
+    extensionVersion: "1.6.0",
     exportedAt: new Date().toISOString(),
     accountKeys: freshTree.map((a) => a.key),
     startupFolderPath: stored.startupFolderPath || "",
@@ -247,7 +247,7 @@ async function exportBackupJSON() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  setStatus("Exported JSON backup (v1.5.1).");
+  setStatus("Exported JSON backup (v1.6.0).");
 }
 
 async function importBackupJSON(file) {
@@ -323,7 +323,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("fld-save").addEventListener("click", async () => {
     let uris = Array.from(siblingList.options).map((o) => o.value);
     await browser.FolderSort.applyFolderOrder(uris);
-    setStatus("Folder order applied to Thunderbird.");
+    setStatus("Folder order applied to THIS account.");
     await loadState();
   });
 
