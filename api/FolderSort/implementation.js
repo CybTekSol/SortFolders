@@ -9,25 +9,52 @@ var { MailServices } = ChromeUtils.importESModule(
 
 const FLAG_IMAP_NOSELECT = 0x00000001;
 
-function isGmailNoselectContainer(folder) {
+function isTransparentNamespaceContainer(folder) {
   if (!folder) {
     return false;
   }
   let rawName = (folder.name || folder.prettyName || "").trim();
-  if (/^\[(Gmail|Google Mail)\]$/i.test(rawName)) {
+  // [Gmail], [Google Mail], or any IMAP noselect container that isn't a real selectable folder
+  if (/^\[.*\]$/.test(rawName)) {
     return true;
   }
-  let uri = folder.URI || "";
-  if (/\/%5B(Gmail|Google%20Mail)%5D$/i.test(uri) || /\/\[(Gmail|Google Mail)\]$/i.test(uri)) {
-    return true;
+  if ((folder.flags & FLAG_IMAP_NOSELECT) !== 0 && !folder.hasSubFolders) {
+    return false;
+  }
+  // Check if Thunderbird hides this noselect container from about:3pane
+  let win = Services.wm.getMostRecentWindow("mail:3pane");
+  let contentWin = win?.gTabmail?.tabInfo?.[0]?.chromeBrowser?.contentWindow;
+  let tree = contentWin?.folderTree || contentWin?.document?.getElementById("folderTree");
+  if (tree && (folder.flags & FLAG_IMAP_NOSELECT) !== 0) {
+    let rowInDOM = Array.from(tree.querySelectorAll("li[is='folder-tree-row']")).some(
+      (r) => (r.uri || r.dataset?.uri) === folder.URI
+    );
+    if (!rowInDOM) {
+      return true;
+    }
   }
   return false;
+}
+
+function getFolderDisplayName(folder, domRow = null) {
+  if (domRow) {
+    let nameEl = domRow.querySelector(".folder-name");
+    if (nameEl && nameEl.textContent.trim()) {
+      return nameEl.textContent.trim();
+    }
+    if (domRow.name && String(domRow.name).trim()) {
+      return String(domRow.name).trim();
+    }
+  }
+  if (folder) {
+    return folder.localizedName || folder.prettyName || folder.name || "";
+  }
+  return "";
 }
 
 function getDirectSubFolders(parentFolder) {
   let foundMap = new Map();
 
-  // 1. Standard subFolders enumerator / array
   try {
     if (parentFolder.subFolders) {
       for (let f of Array.from(parentFolder.subFolders)) {
@@ -37,10 +64,9 @@ function getDirectSubFolders(parentFolder) {
       }
     }
   } catch (e) {
-    // Ignore enumerator errors on noselect containers
+    // Ignore enumerator errors
   }
 
-  // 2. Deep descendants scan (critical for [Gmail] noselect containers)
   try {
     let rootServerFolder = parentFolder.rootFolder || parentFolder;
     if (rootServerFolder && rootServerFolder.descendants) {
@@ -67,10 +93,20 @@ function getDirectSubFolders(parentFolder) {
   return Array.from(foundMap.values());
 }
 
+function getEffectiveSortOrder(folder, domRow = null) {
+  if (folder && typeof folder.userSortOrder === "number" && folder.userSortOrder > 0 && folder.userSortOrder < 999999999) {
+    return folder.userSortOrder;
+  }
+  if (domRow && typeof domRow.folderSortOrder === "number" && domRow.folderSortOrder > 0 && domRow.folderSortOrder < 999999999) {
+    return domRow.folderSortOrder;
+  }
+  return 0;
+}
+
 function sortFolderRecordArray(records) {
   return records.sort((a, b) => {
-    let orderA = a.userSortOrder || 0;
-    let orderB = b.userSortOrder || 0;
+    let orderA = a.userSortOrder > 0 ? a.userSortOrder : 999999999;
+    let orderB = b.userSortOrder > 0 ? b.userSortOrder : 999999999;
     if (orderA !== orderB) {
       return orderA - orderB;
     }
@@ -81,137 +117,163 @@ function sortFolderRecordArray(records) {
   });
 }
 
-function serializeFolders(parentFolder, effectiveParentURI = null, depth = 0, seenURIs = new Set()) {
-  let list = [];
-  let targetParentURI = effectiveParentURI || parentFolder.URI;
-  let subFolders = getDirectSubFolders(parentFolder);
-
-  for (let folder of subFolders) {
-    if (!folder || !folder.URI || seenURIs.has(folder.URI)) {
-      continue;
-    }
-    seenURIs.add(folder.URI);
-
-    // If this is [Gmail] or [Google Mail], hoist its children directly into the Account Root level
-    if (isGmailNoselectContainer(folder)) {
-      let hoistedChildren = serializeFolders(folder, targetParentURI, depth, seenURIs);
-      list.push(...hoistedChildren);
-      continue;
-    }
-
-    let childSubs = getDirectSubFolders(folder);
-    let hasChildren = Boolean(folder.hasSubFolders) || childSubs.length > 0;
-
-    list.push({
-      name: folder.prettyName || folder.name,
-      uri: folder.URI,
-      parentURI: targetParentURI,
-      realParentURI: folder.parent ? folder.parent.URI : parentFolder.URI,
-      depth: depth,
-      hasSubFolders: hasChildren,
-      userSortOrder: folder.userSortOrder || 0,
-      flags: folder.flags || 0
-    });
-
-    if (hasChildren) {
-      list.push(...serializeFolders(folder, folder.URI, depth + 1, seenURIs));
-    }
-  }
-
-  // Sort siblings at the current targetParentURI so hoisted [Gmail] folders interleave properly with Inbox/Labels
-  let directGroup = list.filter((item) => item.parentURI === targetParentURI);
-  let nestedGroup = list.filter((item) => item.parentURI !== targetParentURI);
-  sortFolderRecordArray(directGroup);
-
-  let finalOrdered = [];
-  for (let item of directGroup) {
-    finalOrdered.push(item);
-    let itemDescendants = nestedGroup.filter(
-      (n) => n.uri.startsWith(item.uri + "/") || n.parentURI === item.uri
-    );
-    for (let d of itemDescendants) {
-      if (!finalOrdered.includes(d)) {
-        finalOrdered.push(d);
-      }
-    }
-  }
-  for (let rem of nestedGroup) {
-    if (!finalOrdered.includes(rem)) {
-      finalOrdered.push(rem);
-    }
-  }
-
-  return finalOrdered;
-}
-
-function supplementFromLiveDOM(accountRootURI, folderList) {
+function buildAccountFolderList(rootFolder) {
+  let accountRootURI = rootFolder.URI;
   let win = Services.wm.getMostRecentWindow("mail:3pane");
   let contentWin = win?.gTabmail?.tabInfo?.[0]?.chromeBrowser?.contentWindow;
   let tree = contentWin?.folderTree || contentWin?.document?.getElementById("folderTree");
-  if (!tree) {
-    return folderList;
-  }
 
-  let rootRow = Array.from(tree.querySelectorAll("li[is='folder-tree-row']")).find(
-    (r) => (r.uri || r.dataset?.uri) === accountRootURI
-  );
-  if (!rootRow) {
-    return folderList;
-  }
+  let recordsMap = new Map();
+  let domOrderCounter = 1;
 
-  let knownMap = new Map(folderList.map((f) => [f.uri, f]));
-
-  function walkRow(rowEl, parentURI, depth) {
-    let childListEl = rowEl.querySelector(":scope > ul, :scope > ol");
-    if (!childListEl) {
-      return;
-    }
-    let childRows = Array.from(childListEl.children).filter(
-      (el) => el.matches && el.matches("li[is='folder-tree-row']")
+  // Step 1: Walk live about:3pane DOM first so GMX INBOX.* flattening, [Gmail] hoisting,
+  // and localized European folder names match what Thunderbird displays 1:1.
+  if (tree) {
+    let rootRow = Array.from(tree.querySelectorAll("li[is='folder-tree-row']")).find(
+      (r) => (r.uri || r.dataset?.uri) === accountRootURI
     );
-    for (let cRow of childRows) {
-      let uri = cRow.uri || cRow.dataset?.uri;
-      if (!uri) {
+
+    if (rootRow) {
+      let walkDOM = (rowEl, visualParentURI, depth) => {
+        let childListEl = rowEl.querySelector(":scope > ul, :scope > ol");
+        if (!childListEl) {
+          return;
+        }
+        let childRows = Array.from(childListEl.children).filter(
+          (el) => el.matches && el.matches("li[is='folder-tree-row']")
+        );
+
+        for (let cRow of childRows) {
+          let uri = cRow.uri || cRow.dataset?.uri;
+          if (!uri) {
+            continue;
+          }
+          let folderObj = MailServices.folderLookup.getFolderForURL(uri);
+          if (folderObj && isTransparentNamespaceContainer(folderObj)) {
+            walkDOM(cRow, visualParentURI, depth);
+            continue;
+          }
+
+          let nestedList = cRow.querySelector(":scope > ul, :scope > ol");
+          let domHasChildren = Boolean(
+            nestedList && nestedList.querySelector("li[is='folder-tree-row']")
+          );
+          let xpcomSubs = folderObj ? getDirectSubFolders(folderObj) : [];
+
+          let entry = {
+            name: getFolderDisplayName(folderObj, cRow),
+            uri: uri,
+            parentURI: visualParentURI,
+            realParentURI: folderObj?.parent?.URI || visualParentURI,
+            depth: depth,
+            hasSubFolders: domHasChildren || Boolean(folderObj?.hasSubFolders) || xpcomSubs.length > 0,
+            userSortOrder: getEffectiveSortOrder(folderObj, cRow),
+            domPosition: domOrderCounter++,
+            flags: folderObj?.flags || 0
+          };
+
+          recordsMap.set(uri, entry);
+          walkDOM(cRow, uri, depth + 1);
+        }
+      };
+
+      walkDOM(rootRow, accountRootURI, 0);
+    }
+  }
+
+  // Step 2: Supplement from XPCOM MailServices for any collapsed/unrendered subfolders
+  // while respecting GMX INBOX.* and [Gmail] visual parentage already discovered in Step 1.
+  let seenXPCOM = new Set([accountRootURI]);
+
+  let walkXPCOM = (parentFolder, effectiveParentURI, depth) => {
+    let subFolders = getDirectSubFolders(parentFolder);
+    for (let folder of subFolders) {
+      if (!folder || !folder.URI || seenXPCOM.has(folder.URI)) {
+        continue;
+      }
+      seenXPCOM.add(folder.URI);
+
+      if (isTransparentNamespaceContainer(folder)) {
+        walkXPCOM(folder, effectiveParentURI, depth);
         continue;
       }
 
-      let folderObj = MailServices.folderLookup.getFolderForURL(uri);
-      if (folderObj && isGmailNoselectContainer(folderObj)) {
-        walkRow(cRow, parentURI, depth);
-        continue;
-      }
+      let childSubs = getDirectSubFolders(folder);
+      let hasChildren = Boolean(folder.hasSubFolders) || childSubs.length > 0;
 
-      let nestedList = cRow.querySelector(":scope > ul, :scope > ol");
-      let domHasChildren = Boolean(
-        nestedList && nestedList.querySelector("li[is='folder-tree-row']")
-      );
-
-      if (!knownMap.has(uri)) {
-        let entry = {
-          name: cRow.name || folderObj?.prettyName || folderObj?.name || decodeURIComponent(uri.split("/").pop()),
-          uri: uri,
-          parentURI: parentURI,
-          realParentURI: folderObj?.parent?.URI || parentURI,
+      if (!recordsMap.has(folder.URI)) {
+        recordsMap.set(folder.URI, {
+          name: getFolderDisplayName(folder, null),
+          uri: folder.URI,
+          parentURI: effectiveParentURI,
+          realParentURI: folder.parent ? folder.parent.URI : parentFolder.URI,
           depth: depth,
-          hasSubFolders: domHasChildren || Boolean(folderObj?.hasSubFolders),
-          userSortOrder: folderObj?.userSortOrder || 0,
-          flags: folderObj?.flags || 0
-        };
-        folderList.push(entry);
-        knownMap.set(uri, entry);
+          hasSubFolders: hasChildren,
+          userSortOrder: getEffectiveSortOrder(folder, null),
+          domPosition: domOrderCounter++,
+          flags: folder.flags || 0
+        });
       } else {
-        let existing = knownMap.get(uri);
-        if (domHasChildren) {
+        let existing = recordsMap.get(folder.URI);
+        if (hasChildren) {
           existing.hasSubFolders = true;
         }
       }
 
-      walkRow(cRow, uri, depth + 1);
+      if (hasChildren) {
+        let currentEntry = recordsMap.get(folder.URI);
+        let nextDepth = currentEntry ? currentEntry.depth + 1 : depth + 1;
+        walkXPCOM(folder, folder.URI, nextDepth);
+      }
+    }
+  };
+
+  walkXPCOM(rootFolder, accountRootURI, 0);
+
+  // Step 3: Reconstruct hierarchical list sorted by userSortOrder (or live DOM position) per parentURI
+  let allRecords = Array.from(recordsMap.values());
+  let orderedList = [];
+  let visited = new Set();
+
+  let appendChildrenOf = (pURI, currentDepth) => {
+    let children = allRecords.filter((r) => r.parentURI === pURI && !visited.has(r.uri));
+    children.sort((a, b) => {
+      let hasCustomA = a.userSortOrder > 0;
+      let hasCustomB = b.userSortOrder > 0;
+      if (hasCustomA && hasCustomB && a.userSortOrder !== b.userSortOrder) {
+        return a.userSortOrder - b.userSortOrder;
+      }
+      if (hasCustomA !== hasCustomB) {
+        return hasCustomA ? -1 : 1;
+      }
+      if (a.domPosition !== b.domPosition) {
+        return a.domPosition - b.domPosition;
+      }
+      return (a.name || "").localeCompare(b.name || "", undefined, {
+        numeric: true,
+        sensitivity: "base"
+      });
+    });
+
+    for (let child of children) {
+      visited.add(child.uri);
+      child.depth = currentDepth;
+      orderedList.push(child);
+      appendChildrenOf(child.uri, currentDepth + 1);
+    }
+  };
+
+  appendChildrenOf(accountRootURI, 0);
+
+  // Append any remaining orphaned records
+  for (let rem of allRecords) {
+    if (!visited.has(rem.uri)) {
+      visited.add(rem.uri);
+      orderedList.push(rem);
     }
   }
 
-  walkRow(rootRow, accountRootURI, 0);
-  return folderList;
+  return orderedList;
 }
 
 function persistFolderCustomOrder(folder, orderInt) {
@@ -221,19 +283,84 @@ function persistFolderCustomOrder(folder, orderInt) {
   try {
     folder.userSortOrder = orderInt;
   } catch (e) {
-    // Ignore if read-only on virtual wrapper
+    // Ignore if virtual wrapper
+  }
+  try {
+    folder.setStringProperty("sortOrder", String(orderInt));
+  } catch (e) {
+    // Ignore if folder cache unavailable
   }
   try {
     if (folder.msgDatabase && folder.msgDatabase.dBFolderInfo) {
       folder.msgDatabase.dBFolderInfo.setUint32Property("sortOrder", orderInt);
+      folder.msgDatabase.dBFolderInfo.userSortOrder = orderInt;
       folder.msgDatabase.Commit(Ci.nsMsgDBCommitType.kLargeCommit);
     }
   } catch (e) {
-    // Noselect or closed DB - safe to ignore
+    // Noselect or closed DB
   }
 }
 
-function refreshThreePaneFolderTree() {
+function reorderLiveDOMRows(orderedURIs) {
+  let win = Services.wm.getMostRecentWindow("mail:3pane");
+  if (!win || !win.gTabmail) {
+    return;
+  }
+
+  let orderMap = new Map();
+  orderedURIs.forEach((uri, idx) => {
+    orderMap.set(uri, idx + 1);
+  });
+
+  for (let tabInfo of win.gTabmail.tabInfo) {
+    let contentWin = tabInfo.chromeBrowser?.contentWindow;
+    let tree = contentWin?.folderTree || contentWin?.document?.getElementById("folderTree");
+    if (!tree) {
+      continue;
+    }
+
+    let matchedRows = [];
+    let allRows = Array.from(tree.querySelectorAll("li[is='folder-tree-row']"));
+    for (let row of allRows) {
+      let uri = row.uri || row.dataset?.uri;
+      if (uri && orderMap.has(uri)) {
+        let sortVal = orderMap.get(uri);
+        try {
+          row.folderSortOrder = sortVal;
+          row.dataset.folderSortOrder = String(sortVal);
+        } catch (e) {
+          // Ignore if getter-only on custom element
+        }
+        matchedRows.push({ row, sortVal });
+      }
+    }
+
+    // Group matched rows by their immediate DOM <ul>/<ol> parent container and physically reorder them
+    let containerMap = new Map();
+    for (let item of matchedRows) {
+      let parentList = item.row.parentElement;
+      if (parentList && (parentList.tagName === "UL" || parentList.tagName === "OL")) {
+        if (!containerMap.has(parentList)) {
+          containerMap.set(parentList, []);
+        }
+        containerMap.get(parentList).push(item);
+      }
+    }
+
+    for (let [parentList, items] of containerMap.entries()) {
+      items.sort((a, b) => a.sortVal - b.sortVal);
+      for (let item of items) {
+        parentList.appendChild(item.row);
+      }
+    }
+  }
+}
+
+function refreshThreePaneFolderTree(orderedURIs = null) {
+  if (Array.isArray(orderedURIs) && orderedURIs.length > 0) {
+    reorderLiveDOMRows(orderedURIs);
+  }
+
   let win = Services.wm.getMostRecentWindow("mail:3pane");
   if (!win || !win.gTabmail) {
     return;
@@ -247,6 +374,10 @@ function refreshThreePaneFolderTree() {
         contentWin.folderPane._rebuild?.();
       }
     }
+  }
+
+  if (Array.isArray(orderedURIs) && orderedURIs.length > 0) {
+    reorderLiveDOMRows(orderedURIs);
   }
 }
 
@@ -375,9 +506,7 @@ var FolderSort = class extends ExtensionCommon.ExtensionAPI {
               continue;
             }
             let rootFolder = acc.incomingServer.rootFolder;
-            let seen = new Set([rootFolder.URI]);
-            let folders = serializeFolders(rootFolder, rootFolder.URI, 0, seen);
-            folders = supplementFromLiveDOM(rootFolder.URI, folders);
+            let folders = buildAccountFolderList(rootFolder);
 
             result.push({
               key: acc.key,
@@ -405,41 +534,47 @@ var FolderSort = class extends ExtensionCommon.ExtensionAPI {
 
         async applyFolderOrder(orderedURIs) {
           let index = 1;
-          let gmailContainerMinOrder = new Map();
+          let parentContainerMinOrder = new Map();
 
           for (let uri of orderedURIs) {
             let folder = MailServices.folderLookup.getFolderForURL(uri);
             if (folder) {
               persistFolderCustomOrder(folder, index);
 
-              if (folder.parent && isGmailNoselectContainer(folder.parent)) {
+              if (folder.parent && isTransparentNamespaceContainer(folder.parent)) {
                 let pURI = folder.parent.URI;
-                if (!gmailContainerMinOrder.has(pURI)) {
-                  gmailContainerMinOrder.set(pURI, index);
+                if (!parentContainerMinOrder.has(pURI)) {
+                  parentContainerMinOrder.set(pURI, index);
                 }
               }
               index = index + 1;
             }
           }
 
-          for (let [gmailURI, minIdx] of gmailContainerMinOrder.entries()) {
-            let gmailFolder = MailServices.folderLookup.getFolderForURL(gmailURI);
-            if (gmailFolder) {
-              persistFolderCustomOrder(gmailFolder, minIdx);
+          for (let [containerURI, minIdx] of parentContainerMinOrder.entries()) {
+            let containerFolder = MailServices.folderLookup.getFolderForURL(containerURI);
+            if (containerFolder) {
+              persistFolderCustomOrder(containerFolder, minIdx);
             }
           }
 
-          refreshThreePaneFolderTree();
+          refreshThreePaneFolderTree(orderedURIs);
         },
 
         async restoreFolderOrders(folderEntries) {
-          for (let entry of folderEntries) {
+          let sortedEntries = Array.from(folderEntries).sort(
+            (a, b) => (a.userSortOrder || 0) - (b.userSortOrder || 0)
+          );
+          let orderedURIs = [];
+
+          for (let entry of sortedEntries) {
             let folder = MailServices.folderLookup.getFolderForURL(entry.uri);
             if (folder) {
               persistFolderCustomOrder(folder, entry.userSortOrder);
+              orderedURIs.push(entry.uri);
             }
           }
-          refreshThreePaneFolderTree();
+          refreshThreePaneFolderTree(orderedURIs);
         },
 
         async applyStartupState(startupURI, expandMode, customExpandedURIs) {
