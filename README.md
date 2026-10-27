@@ -20,7 +20,7 @@ Developed and maintained by **CybTekSol [ https://github.com/CybTekSol ]** as a 
 ## Features
 
 - **Account Order Management:** Quickly move mail, feed, and local accounts up or down in the Thunderbird folder pane and persist the exact sequence directly to `MailServices.accounts`.
-- **Granular Folder Sorting (Including `[Gmail]` Hoisting & Proton Mail):** Automatically detects IMAP noselect `[Gmail]` / `[Google Mail]` containers and hoists their subfolders (`Sent Mail`, `All Mail`, `Trash`, `Starred`, `Spam`, `Drafts`) into the main Gmail account folder list so all Gmail folders and labels can be sorted together as a single unified list.
+- **Universal Folder Sorting (GMX, Web.de, Gmail, Proton Mail & All Languages):** Uses live `about:3pane` visual hierarchy mirroring alongside XPCOM `descendants` inspection to support GMX/Dovecot `INBOX.` namespaces, `[Gmail]` / `[Google Mail]` noselect hoisting, Proton Mail Bridge `Folders`/`Labels`, and localized folder names (`localizedName` / `.folder-name`) across all languages.
 - **Startup Folder & Independent Subfolder Expansion:** Configure a default startup folder and override Thunderbird's first-account auto-expand behavior on restart. Supports pre-expanding nested subfolders (such as Proton Mail's `Folders` container) while leaving the parent account collapsed until opened.
 - **Full JSON Backup & Restore:** Export your complete account order, custom `userSortOrder` folder integers across all hierarchies, startup folder, and folder expansion state preferences to a portable `.json` file, and restore your entire configuration in one click.
 - **Native Dark & Light Theme Support:** Clean, dependency-free HTML5/CSS Grid dashboard that automatically adapts to your operating system and Thunderbird color scheme (`prefers-color-scheme`).
@@ -47,7 +47,7 @@ SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's int
 ## Installation
 
 ### Manual Install (.xpi)
-1. Download the latest `SortFolders-v1.5.1.xpi` from the [Releases](https://github.com/CybTekSol/SortFolders/releases) section.
+1. Download the latest `SortFolders-v1.6.0.xpi` from the [Releases](https://github.com/CybTekSol/SortFolders/releases) section.
 2. In Thunderbird, open **Tools > Add-ons and Themes** (or press `Ctrl + Shift + A`).
 3. Click the gear icon in the top right and select **Install Add-on From File...**
 4. Select the downloaded `.xpi` file and confirm installation.
@@ -65,6 +65,11 @@ SortFolders utilizes a hybrid "Thin Bridge" pattern to isolate Thunderbird's int
 ---
 
 ## Changelog
+
+### Changes in version 1.6.0:
+* Fixed GMX, Web.de, and European IMAP account folder discovery and sorting by mirroring the live `about:3pane` visual parent-child hierarchy first (automatically resolving flattened `INBOX.` personal namespaces and localized `.folder-name` / `localizedName` labels in any language).
+* Added direct `about:3pane` DOM row `folderSortOrder` injection and live `<ul>` child reordering in `implementation.js` to override Thunderbird's special-folder lock (`Inbox`, `Sent`, `Trash`, `Drafts`, `Junk`) on GMX and localized IMAP accounts.
+* Updated the folder save button label to **Apply Folder Order to THIS Account** for clearer per-account workflow.
 
 ### Changes in version 1.5.1:
 * Expanded compatibility by lowering `strict_min_version` to `140.0` in `manifest.json`, supporting Thunderbird 140 ESR, 153 ESR, and 158+ Release builds with a single unified package.
